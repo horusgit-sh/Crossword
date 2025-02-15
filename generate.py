@@ -1,4 +1,5 @@
 import sys
+from collections import deque
 
 from crossword import *
 
@@ -99,7 +100,18 @@ class CrosswordCreator():
         (Remove any values that are inconsistent with a variable's unary
          constraints; in this case, the length of the word.)
         """
-        raise NotImplementedError
+        for x in self.domains:
+            rem = set()
+            for word in self.domains[x]:
+                if len(word) != x.length:
+                    rem.add(word)
+            self.domains[x] -= rem
+
+
+
+
+
+
 
     def revise(self, x, y):
         """
@@ -110,7 +122,28 @@ class CrosswordCreator():
         Return True if a revision was made to the domain of `x`; return
         False if no revision was made.
         """
-        raise NotImplementedError
+        revised = self.crossword.overlaps.get((x, y))
+        res = False
+        if revised is not None:
+            i, j = revised
+            rem = []
+            for wordx in self.domains[x]:
+                match = False
+                for wordy in self.domains[y]:
+                    if wordx[i] == wordy[j]:
+                        match = True
+                        break
+
+                if not match:
+                    rem.append(wordx)
+
+            for word in rem:
+                self.domains[x].remove(word)
+                res = True
+        return res
+
+
+
 
     def ac3(self, arcs=None):
         """
@@ -121,7 +154,25 @@ class CrosswordCreator():
         Return True if arc consistency is enforced and no domains are empty;
         return False if one or more domains end up empty.
         """
-        raise NotImplementedError
+        queue = deque()
+        if arcs is None:
+            for (x, y), indices in self.crossword.overlaps.items():
+                if indices is not None:
+                    queue.append((x, y))
+        else:
+            queue.extend(arcs)
+
+        while queue:
+            i, j = queue.popleft()
+            if self.revise(i, j):
+                if not self.domains[i]:
+                    return False
+                for z in self.domains:
+                    if z != j and self.crossword.overlaps.get((i, z)) is not None:
+                        queue.append((i, z))
+        return True
+
+
 
     def assignment_complete(self, assignment):
         """
